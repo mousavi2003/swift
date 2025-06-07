@@ -1,77 +1,57 @@
 import Foundation
 
-// Generate a secret 4-digit code (each digit between 1 and 6)
-func generateSecretCode() -> [Int] {
-    (1...4).map { _ in Int.random(in: 1...6) }
+func shell(_ command: String) -> String {
+    let task = Process()
+    let pipe = Pipe()
+    task.standardOutput = pipe
+    task.standardError = pipe
+    task.arguments = ["-c", command]
+    task.executableURL = URL(fileURLWithPath: "/bin/bash")
+    try! task.run()
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    return String(data: data, encoding: .utf8) ?? ""
 }
 
-// Compare user's guess with secret code and return number of B and W
-func checkGuess(secret: [Int], guess: [Int]) -> (black: Int, white: Int) {
-    var blacks = 0
-    var whites = 0
-    var secretFlags = [Bool](repeating: false, count: 4)
-    var guessFlags = [Bool](repeating: false, count: 4)
-    
-    // Step 1: Find B (correct digit and position)
-    for i in 0..<4 {
-        if secret[i] == guess[i] {
-            blacks += 1
-            secretFlags[i] = true
-            guessFlags[i] = true
-        }
-    }
-    // Step 2: Find W (correct digit, wrong position)
-    for i in 0..<4 {
-        if guessFlags[i] { continue }
-        for j in 0..<4 {
-            if !secretFlags[j] && guess[i] == secret[j] {
-                whites += 1
-                secretFlags[j] = true
-                break
-            }
-        }
-    }
-    return (blacks, whites)
-}
+// Create a new game
+let createGameCmd = "curl -s -X POST https://mastermind.darkube.app/game"
+let createGameOutput = shell(createGameCmd)
 
-// Read user input and validate it
-func readGuess() -> [Int]? {
-    print("Enter a 4-digit code (digits 1-6) or type 'exit' to quit: ", terminator: "")
-    guard let input = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines) else { return nil }
-    if input.lowercased() == "exit" {
-        return nil
-    }
-    if input.count != 4 || input.contains(where: { $0 < "1" || $0 > "6" }) {
-        print("Invalid input! Please enter exactly 4 digits between 1 and 6.")
-        return readGuess()
-    }
-    return input.compactMap { Int(String($0)) }
-}
-
-// Run the game
-func playGame() {
-    let secret = generateSecretCode()
-    // For debugging: uncomment the next line to see the secret code
-    // print("Secret code: \(secret.map(String.init).joined())")
-    var attempts = 0
-    
-    while true {
-        guard let guess = readGuess() else {
-            print("Goodbye!")
-            break
-        }
-        attempts += 1
-        let (b, w) = checkGuess(secret: secret, guess: guess)
-        if b == 4 {
-            print("Congratulations! You guessed the secret code in \(attempts) attempts 👏")
-            break
-        } else {
-            let result = String(repeating: "B", count: b) + String(repeating: "W", count: w)
-            print("Result: \(result)")
-        }
+// extract game_id from JSON
+let pattern = "\"game_id\"\\s*:\\s*\"([^\"]+)\""
+let regex = try! NSRegularExpression(pattern: pattern)
+let range = NSRange(createGameOutput.startIndex..., in: createGameOutput)
+var gameId: String? = nil
+if let match = regex.firstMatch(in: createGameOutput, options: [], range: range) {
+    if let swiftRange = Range(match.range(at: 1), in: createGameOutput) {
+        gameId = String(createGameOutput[swiftRange])
     }
 }
+guard let gameID = gameId else {
+    print("Could not get game ID. Exiting.")
+    exit(1)
+}
+print("Game started! Game ID: \(gameID)")
 
-// Start the game
-print("Welcome to the Mastermind game!")
-playGame()
+
+var attemp = 0
+
+while true {
+    attemp += 1
+    print("Enter your guess (4 digits 1-6) or type 'exit': ", terminator: "")
+    guard let guess = readLine()?.trimmingCharacters(in: .whitespacesAndNewlines) else { break }
+    if guess.lowercased() == "exit" { break }
+    if guess.count != 4 || guess.contains(where: { $0 < "1" || $0 > "6" }) {
+        print("Invalid input.")
+        continue
+    }
+    let json = """
+    {"game_id":"\(gameID)","guess":"\(guess)"}
+    """
+    let guessCmd = "curl -s -X POST https://mastermind.darkube.app/guess -H 'Content-Type: application/json' -d '\(json)'"
+    let guessOutput = shell(guessCmd)
+    print("Server response:", guessOutput)
+    if guessOutput.contains("\"black\":4") {
+        print("Congratulations! You guessed the code in \(attemp) attemp!")
+        break
+    } 
+}
