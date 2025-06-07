@@ -12,7 +12,7 @@ func shell(_ command: String) -> String {
     return String(data: data, encoding: .utf8) ?? ""
 }
 
-
+// delete game
 func deleteGame(gameID: String) {
     let deleteCmd = "curl -s -o /dev/null -w \"%{http_code}\" -X DELETE https://mastermind.darkube.app/game/\(gameID)"
     let statusCode = shell(deleteCmd).trimmingCharacters(in: .whitespacesAndNewlines)
