@@ -68,8 +68,11 @@ while true {
         print("\nDo you want to delete your game from server? (y/n): ", terminator: "")
         if let answer = readLine(), answer.lowercased() == "y" {
             deleteGame(gameID: gameID)
+            print("Goodby!")
+            break
         } else {
             print("Game not deleted from server.\n Goodby!")
+            break
         }
     } 
 }
