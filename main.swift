@@ -12,6 +12,19 @@ func shell(_ command: String) -> String {
     return String(data: data, encoding: .utf8) ?? ""
 }
 
+
+func deleteGame(gameID: String) {
+    let deleteCmd = "curl -s -o /dev/null -w \"%{http_code}\" -X DELETE https://mastermind.darkube.app/game/\(gameID)"
+    let statusCode = shell(deleteCmd).trimmingCharacters(in: .whitespacesAndNewlines)
+    if statusCode == "204" {
+        print("Game deleted successfully from server.")
+    } else if statusCode == "404" {
+        print("Game not found on server (maybe already deleted).")
+    } else {
+        print("Failed to delete game from server (HTTP \(statusCode)).")
+    }
+}
+
 // Create a new game
 let createGameCmd = "curl -s -X POST https://mastermind.darkube.app/game"
 let createGameOutput = shell(createGameCmd)
@@ -52,6 +65,11 @@ while true {
     print("Server response:", guessOutput)
     if guessOutput.contains("\"black\":4") {
         print("Congratulations! You guessed the code in \(attemp) attemp!")
-        break
+        print("\nDo you want to delete your game from server? (y/n): ", terminator: "")
+        if let answer = readLine(), answer.lowercased() == "y" {
+            deleteGame(gameID: gameID)
+        } else {
+            print("Game not deleted from server.\n Goodby!")
+        }
     } 
 }
